@@ -1,4 +1,3 @@
-
 export interface LandmarkIdentificationResult {
     isLandmark: boolean;
     name: string | null;
@@ -19,6 +18,7 @@ export enum ProcessState {
     Idle,
     ImageUploaded,
     Loading,
+    GeneratingVideo,
     Done,
     Error
 }
@@ -30,6 +30,8 @@ export interface AppState {
     analysis: LandmarkAnalysis | null;
     error: string | null;
     loadingMessage: string;
+    videoUrl: string | null;
+    isVeoKeyModalOpen: boolean;
 }
 
 export interface VoiceOption {

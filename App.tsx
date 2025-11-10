@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ImageUploader } from './components/ImageUploader';
 import { Loader } from './components/Loader';
 import { AnalysisResult } from './components/AnalysisResult';
 import { HistoryPanel } from './components/HistoryPanel';
 import { ShareModal } from './components/ShareModal';
+import { VeoApiKeyModal } from './components/VeoApiKeyModal';
 import { AppState, ProcessState, LandmarkAnalysis, VoiceOption } from './types';
-import { identifyLandmark, fetchLandmarkHistory, narrateText } from './services/geminiService';
+import { identifyLandmark, fetchLandmarkHistory, narrateText, createVideoFromLandmark } from './services/geminiService';
 import { HistoryIcon, ChevronDownIcon, UploadIcon, BrainIcon, BookIcon, SoundWaveIcon } from './components/icons';
 
 const App: React.FC = () => {
@@ -17,6 +17,8 @@ const App: React.FC = () => {
         analysis: null,
         error: null,
         loadingMessage: '',
+        videoUrl: null,
+        isVeoKeyModalOpen: false,
     };
     
     const [state, setState] = useState<AppState>(initialState);
@@ -125,12 +127,73 @@ const App: React.FC = () => {
             setState(s => ({ ...s, processState: ProcessState.Error, error: errorMessage }));
         }
     }, [state.imageFile, state.imageDataUrl, selectedVoice]);
+
+    const startVideoGeneration = useCallback(async () => {
+        if (!state.analysis?.isLandmark) return;
+
+        setState(s => ({ ...s, processState: ProcessState.GeneratingVideo, loadingMessage: 'Starting video generation...' }));
+
+        try {
+            const { imageBase64, imageMimeType, name } = state.analysis;
+            
+            const downloadLink = await createVideoFromLandmark(name, { imageBase64, imageMimeType }, (message) => {
+                setState(s => ({ ...s, loadingMessage: message }));
+            });
+
+            setState(s => ({ ...s, loadingMessage: 'Downloading generated video...' }));
+            const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+            if (!response.ok) {
+                throw new Error(`Failed to download video: ${response.statusText}`);
+            }
+            const videoBlob = await response.blob();
+            const objectUrl = URL.createObjectURL(videoBlob);
+            
+            setState(s => ({ ...s, videoUrl: objectUrl, processState: ProcessState.Done, loadingMessage: '' }));
+
+        } catch (err) {
+            console.error("Video generation failed:", err);
+            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during video generation.";
+
+            if (errorMessage.includes("Requested entity was not found")) {
+                setState(s => ({ 
+                    ...s, 
+                    processState: ProcessState.Done, 
+                    error: "Your API Key seems invalid for this feature. Please select a different key and try again.",
+                    isVeoKeyModalOpen: true
+                }));
+            } else {
+                 setState(s => ({ ...s, processState: ProcessState.Error, error: errorMessage }));
+            }
+        }
+    }, [state.analysis]);
+
+    const handleGenerateVideo = useCallback(async () => {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+            setState(s => ({...s, isVeoKeyModalOpen: true}));
+        } else {
+            startVideoGeneration();
+        }
+    }, [startVideoGeneration]);
+
+    const handleSelectKey = useCallback(() => {
+        window.aistudio.openSelectKey();
+        setState(s => ({...s, isVeoKeyModalOpen: false}));
+        setTimeout(startVideoGeneration, 500);
+    }, [startVideoGeneration]);
     
     const handleReset = () => {
+        // Revoke the old video URL if it exists to prevent memory leaks
+        if (state.videoUrl) {
+            URL.revokeObjectURL(state.videoUrl);
+        }
         setState(initialState);
     };
 
     const handleSelectHistoryItem = (item: LandmarkAnalysis) => {
+        if (state.videoUrl) {
+            URL.revokeObjectURL(state.videoUrl);
+        }
         setState({
             ...initialState,
             processState: ProcessState.Done,
@@ -219,12 +282,23 @@ const App: React.FC = () => {
                 );
             case ProcessState.Loading:
                 return <Loader message={state.loadingMessage} />;
+            case ProcessState.GeneratingVideo:
             case ProcessState.Done:
-                return state.analysis && <AnalysisResult analysis={state.analysis} onNewAnalysis={handleReset} onShare={() => setIsShareModalOpen(true)} />;
+                return state.analysis && (
+                    <AnalysisResult 
+                        analysis={state.analysis} 
+                        onNewAnalysis={handleReset} 
+                        onShare={() => setIsShareModalOpen(true)}
+                        onGenerateVideo={handleGenerateVideo}
+                        videoUrl={state.videoUrl}
+                        isVideoLoading={state.processState === ProcessState.GeneratingVideo}
+                        videoLoadingMessage={state.loadingMessage}
+                    />
+                );
             case ProcessState.Error:
                 return (
                      <div className="text-center animate-fade-in p-8 bg-red-900/20 border border-red-500/50 rounded-lg max-w-lg mx-auto">
-                        <h3 className="text-2xl font-bold text-red-400 mb-4">Analysis Failed</h3>
+                        <h3 className="text-2xl font-bold text-red-400 mb-4">An Error Occurred</h3>
                         <p className="text-red-200 mb-6">{state.error}</p>
                         <button onClick={handleReset} className="bg-red-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-600 transition-colors">
                             Try Again
@@ -264,6 +338,13 @@ const App: React.FC = () => {
                     onSelect={handleSelectHistoryItem} 
                     onClose={() => setIsHistoryPanelOpen(false)}
                     onClearHistory={handleClearHistory}
+                />
+            )}
+            
+            {state.isVeoKeyModalOpen && (
+                <VeoApiKeyModal
+                    onClose={() => setState(s => ({...s, isVeoKeyModalOpen: false}))}
+                    onSelectKey={handleSelectKey}
                 />
             )}
 

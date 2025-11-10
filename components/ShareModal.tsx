@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { LandmarkAnalysis } from '../types';
-import { CloseIcon, CopyIcon, CheckIcon } from './icons';
+import { CloseIcon, CopyIcon, CheckIcon, WhatsAppIcon, InstagramIcon, YouTubeIcon } from './icons';
 
 interface ShareModalProps {
     analysis: LandmarkAnalysis;
@@ -13,8 +12,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({ analysis, onClose }) => 
     const [isCopied, setIsCopied] = useState(false);
 
     useEffect(() => {
-        // In a real app, you might generate a unique URL that points to a page
-        // displaying this result. For this example, we'll just use the current URL.
         setShareUrl(window.location.href);
     }, []);
 
@@ -27,8 +24,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({ analysis, onClose }) => 
         });
     };
     
-    // Summary for sharing
     const shareText = `Check out this landmark: ${analysis.name}. Here's a brief history: ${analysis.history.substring(0, 150)}...`;
+    const shareTitle = `LandmarkLens Discovery: ${analysis.name}`;
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" onClick={onClose}>
@@ -69,15 +66,23 @@ export const ShareModal: React.FC<ShareModalProps> = ({ analysis, onClose }) => 
                     </div>
 
                     <div className="mt-6 flex justify-center space-x-4">
-                        {/* Example social share links */}
-                         <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-blue-500 hover:text-white transition-colors">
+                         <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors" title="Share on X">
                              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>
                         </a>
-                         <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-blue-700 hover:text-white transition-colors">
+                         <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-blue-700 hover:text-white transition-colors" title="Share on Facebook">
                             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4z"></path></svg>
                         </a>
-                         <a href={`mailto:?subject=Check out this landmark: ${analysis.name}&body=${encodeURIComponent(shareText)}%0A%0A${encodeURIComponent(shareUrl)}`} className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors">
+                        <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}%20${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-green-500 hover:text-white transition-colors" title="Share on WhatsApp">
+                             <WhatsAppIcon className="w-6 h-6"/>
+                        </a>
+                        <a href={`mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareText)}%0A%0A${encodeURIComponent(shareUrl)}`} className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors" title="Share via Email">
                              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5l-8-5h16zm0 12H4V8l8 5l8-5v10z"></path></svg>
+                        </a>
+                        <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-pink-600 hover:text-white transition-colors" title="Open Instagram">
+                             <InstagramIcon className="w-6 h-6"/>
+                        </a>
+                        <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(analysis.name)}`} target="_blank" rel="noopener noreferrer" className="p-3 bg-gray-700 rounded-full text-gray-300 hover:bg-red-600 hover:text-white transition-colors" title="Search on YouTube">
+                             <YouTubeIcon className="w-6 h-6"/>
                         </a>
                     </div>
                 </div>
