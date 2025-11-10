@@ -1,403 +1,253 @@
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { identifyLandmark, fetchLandmarkHistory, narrateText } from './services/geminiService';
-import { AnalysisResult } from './components/AnalysisResult';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ImageUploader } from './components/ImageUploader';
 import { Loader } from './components/Loader';
+import { AnalysisResult } from './components/AnalysisResult';
 import { HistoryPanel } from './components/HistoryPanel';
-import { LandmarkAnalysis, AppState, ProcessState, VoiceOption } from './types';
-import { decodeAudioData, createWavBlobFromBase64 } from './utils/audio';
-import { base64toFile } from './utils/image';
-import { HistoryIcon } from './components/icons';
-
-const AVAILABLE_VOICES: VoiceOption[] = [
-    { id: 'Kore', name: 'Kore' },
-    { id: 'Puck', name: 'Puck' },
-    { id: 'Charon', name: 'Charon' },
-    { id: 'Fenrir', name: 'Fenrir' },
-    { id: 'Zephyr', name: 'Zephyr' },
-];
-
-const MAX_HISTORY_ITEMS = 20;
-
-const saveHistory = (historyToSave: LandmarkAnalysis[]): LandmarkAnalysis[] => {
-    let history = [...historyToSave];
-    let saved = false;
-    // Keep trying to save, removing the oldest item each time the quota is exceeded.
-    while (!saved && history.length > 0) {
-        try {
-            localStorage.setItem('landmarkHistory', JSON.stringify(history));
-            saved = true;
-        } catch (error) {
-            if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
-                console.warn(`LocalStorage quota exceeded. Removing oldest history item to make space.`);
-                history.pop(); // Remove the oldest item
-            } else {
-                console.error("Failed to save history to localStorage", error);
-                // For other errors, stop trying.
-                break;
-            }
-        }
-    }
-    return history; // Return the version of history that was successfully saved.
-};
-
-
-// Helper to convert file to base64
-const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            const result = reader.result as string;
-            // remove 'data:image/jpeg;base64,' from the start
-            resolve(result.split(',')[1]);
-        };
-        reader.onerror = error => reject(error);
-    });
-};
+import { ShareModal } from './components/ShareModal';
+import { AppState, ProcessState, LandmarkAnalysis, VoiceOption } from './types';
+import { identifyLandmark, fetchLandmarkHistory, narrateText } from './services/geminiService';
+import { HistoryIcon, ChevronDownIcon } from './components/icons';
 
 const App: React.FC = () => {
-    const [appState, setAppState] = useState<AppState>({
+    const initialState: AppState = {
         processState: ProcessState.Idle,
         imageFile: null,
         imageDataUrl: null,
         analysis: null,
         error: null,
-        loadingMessage: ''
-    });
-
-    const [isPlaying, setIsPlaying] = useState<boolean>(false);
+        loadingMessage: '',
+    };
+    
+    const [state, setState] = useState<AppState>(initialState);
     const [history, setHistory] = useState<LandmarkAnalysis[]>([]);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
-    const [selectedVoice, setSelectedVoice] = useState<string>(AVAILABLE_VOICES[0].id);
-    const [isRegeneratingAudio, setIsRegeneratingAudio] = useState<boolean>(false);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    
+    const voiceOptions: VoiceOption[] = [
+        { id: 'Kore', name: 'Kore (Female)' },
+        { id: 'Puck', name: 'Puck (Male)' },
+        { id: 'Charon', name: 'Charon (Male)' },
+        { id: 'Zephyr', name: 'Zephyr (Female)' },
+        { id: 'Fenrir', name: 'Fenrir (Male)' },
+    ];
+    const [selectedVoice, setSelectedVoice] = useState<VoiceOption>(voiceOptions[0]);
 
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-
+    // Load history from localStorage on initial render
     useEffect(() => {
         try {
-            const storedHistory = localStorage.getItem('landmarkHistory');
-            if (storedHistory) {
-                setHistory(JSON.parse(storedHistory));
+            const savedHistory = localStorage.getItem('landmarkHistory');
+            if (savedHistory) {
+                setHistory(JSON.parse(savedHistory));
             }
         } catch (error) {
-            console.error("Failed to load history from localStorage", error);
-            localStorage.removeItem('landmarkHistory');
+            console.error("Could not load history from localStorage:", error);
         }
     }, []);
 
+    // Save history to localStorage whenever it changes
+    useEffect(() => {
+        try {
+            localStorage.setItem('landmarkHistory', JSON.stringify(history));
+        } catch (error) {
+            console.error("Could not save history to localStorage:", error);
+        }
+    }, [history]);
 
-    const handleImageChange = (file: File | null) => {
-        if (file) {
-            const dataUrl = URL.createObjectURL(file);
-            setAppState({
+    const handleImageChange = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setState({
+                ...initialState,
                 processState: ProcessState.ImageUploaded,
                 imageFile: file,
-                imageDataUrl: dataUrl,
-                analysis: null,
-                error: null,
-                loadingMessage: ''
+                imageDataUrl: e.target?.result as string,
             });
-        }
+        };
+        reader.readAsDataURL(file);
     };
 
-    const handleAnalyzeClick = useCallback(async () => {
-        if (!appState.imageFile) return;
-
-        setAppState(prev => ({ ...prev, processState: ProcessState.Loading, error: null, loadingMessage: 'Analyzing image...' }));
+    const startAnalysis = useCallback(async () => {
+        if (!state.imageFile || !state.imageDataUrl) return;
+        
+        const imageMimeType = state.imageFile.type;
+        const imageBase64 = state.imageDataUrl.split(',')[1];
         
         try {
-            const base64Image = await fileToBase64(appState.imageFile);
+            setState(s => ({ ...s, processState: ProcessState.Loading, loadingMessage: 'Identifying landmark...' }));
+
+            const identification = await identifyLandmark(imageBase64, imageMimeType);
             
-            const identificationResult = await identifyLandmark(base64Image, appState.imageFile.type);
-
-            let newAnalysis: LandmarkAnalysis;
-
-            if (identificationResult.isLandmark && identificationResult.name) {
-                const landmarkName = identificationResult.name;
-                setAppState(prev => ({ ...prev, loadingMessage: `Identified: ${landmarkName}. Fetching history...` }));
-
-                const { text: historyText, sources } = await fetchLandmarkHistory(landmarkName);
-
-                setAppState(prev => ({ ...prev, loadingMessage: 'Generating audio narration...' }));
-
-                const audioData = await narrateText(historyText, selectedVoice);
-                
-                newAnalysis = {
-                    name: landmarkName,
-                    history: historyText,
-                    sources,
-                    audioData,
-                    imageBase64: base64Image,
-                    imageMimeType: appState.imageFile.type,
-                    isLandmark: true,
-                };
-            } else {
-                // Not a landmark
-                setAppState(prev => ({ ...prev, loadingMessage: 'Analysis complete.' }));
-                newAnalysis = {
-                    name: "Image Analysis",
-                    history: identificationResult.description || "Could not identify a specific landmark in this image.",
+            if (!identification.isLandmark) {
+                const nonLandmarkAnalysis: LandmarkAnalysis = {
+                    name: "Not a Landmark",
+                    history: identification.description || "The image uploaded does not appear to contain a recognizable landmark.",
                     sources: [],
-                    audioData: null, // No audio for non-landmarks
-                    imageBase64: base64Image,
-                    imageMimeType: appState.imageFile.type,
+                    audioData: null,
+                    imageBase64,
+                    imageMimeType,
                     isLandmark: false,
                 };
+                setState(s => ({ 
+                    ...s, 
+                    processState: ProcessState.Done,
+                    analysis: nonLandmarkAnalysis,
+                }));
+                // Do not add non-landmarks to history
+                return;
             }
 
+            const landmarkName = identification.name!;
+            setState(s => ({ ...s, loadingMessage: `Found ${landmarkName}. Fetching history...`}));
 
-            setAppState(prev => ({
-                ...prev,
-                processState: ProcessState.Done,
-                analysis: newAnalysis,
-                loadingMessage: ''
-            }));
-            
-            setHistory(prevHistory => {
-                const updatedHistory = [newAnalysis, ...prevHistory.filter(h => h.name !== newAnalysis.name)]
-                    .slice(0, MAX_HISTORY_ITEMS);
-                return saveHistory(updatedHistory);
-            });
+            const { text: historyText, sources } = await fetchLandmarkHistory(landmarkName);
+
+            setState(s => ({ ...s, loadingMessage: `Generating audio narration with ${selectedVoice.name} voice...` }));
+
+            const audioData = await narrateText(historyText, selectedVoice.id);
+
+            const finalAnalysis: LandmarkAnalysis = {
+                name: landmarkName,
+                history: historyText,
+                sources: sources,
+                audioData,
+                imageBase64,
+                imageMimeType,
+                isLandmark: true,
+            };
+
+            setState(s => ({ ...s, processState: ProcessState.Done, analysis: finalAnalysis }));
+            setHistory(prevHistory => [finalAnalysis, ...prevHistory.filter(item => item.name !== finalAnalysis.name)]);
 
         } catch (err) {
-            console.error(err);
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            setAppState(prev => ({ ...prev, processState: ProcessState.Error, error: `Analysis failed: ${errorMessage}` }));
+            console.error("Analysis failed:", err);
+            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during analysis.";
+            setState(s => ({ ...s, processState: ProcessState.Error, error: errorMessage }));
         }
-    }, [appState.imageFile, selectedVoice]);
-
-    const playNarration = async () => {
-        if (!appState.analysis?.audioData || isPlaying) return;
-
-        try {
-            if (!audioContextRef.current) {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-            }
-
-            const audioContext = audioContextRef.current;
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-
-            const audioBuffer = await decodeAudioData(appState.analysis.audioData, audioContext);
-            const source = audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-            
-            source.onended = () => {
-                setIsPlaying(false);
-                audioSourceRef.current = null;
-            };
-
-            source.start();
-            audioSourceRef.current = source;
-            setIsPlaying(true);
-        } catch (error) {
-            console.error("Failed to play audio:", error);
-            setAppState(prev => ({ ...prev, error: "Could not play the audio narration."}));
-        }
-    };
+    }, [state.imageFile, state.imageDataUrl, selectedVoice]);
     
-    const stopNarration = () => {
-        if (audioSourceRef.current) {
-            audioSourceRef.current.stop();
-        }
-    };
-
     const handleReset = () => {
-        stopNarration();
-        if (appState.imageDataUrl && appState.imageDataUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(appState.imageDataUrl);
-        }
-        setAppState({
-            processState: ProcessState.Idle,
-            imageFile: null,
-            imageDataUrl: null,
-            analysis: null,
-            error: null,
-            loadingMessage: ''
-        });
-        setIsPlaying(false);
+        setState(initialState);
     };
-
-    const handleDownload = useCallback(() => {
-        if (!appState.analysis?.audioData) return;
-
-        try {
-            const blob = createWavBlobFromBase64(appState.analysis.audioData);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${appState.analysis.name.replace(/\s/g, '_')}_narration.mp3`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Failed to create download link:", error);
-            setAppState(prev => ({ ...prev, error: "Could not prepare the audio for download."}));
-        }
-    }, [appState.analysis]);
-
-     const handleShare = useCallback(async () => {
-        if (!appState.analysis || !navigator.share) {
-            console.warn("Sharing not supported or no analysis available.");
-            return;
-        }
-
-        const { name, history, imageBase64, imageMimeType } = appState.analysis;
-
-        try {
-            const shareText = `Check out this landmark: ${name}!\n\nHere's a brief history:\n${history}`;
-            const filename = `${name.replace(/\s/g, '_')}.${imageMimeType.split('/')[1] || 'jpeg'}`;
-            const imageFile = base64toFile(imageBase64, filename, imageMimeType);
-
-            const shareData: ShareData = {
-                title: `Photo Tour Guide: ${name}`,
-                text: shareText,
-            };
-            
-            if (navigator.canShare && navigator.canShare({ files: [imageFile] })) {
-                shareData.files = [imageFile];
-            }
-
-            await navigator.share(shareData);
-
-        } catch (error) {
-            if ((error as DOMException).name !== 'AbortError') {
-                 console.error("Error sharing:", error);
-                 setAppState(prev => ({ ...prev, error: "Could not share the analysis." }));
-            }
-        }
-    }, [appState.analysis]);
-
-    const handleVoiceChange = async (newVoice: string) => {
-        setSelectedVoice(newVoice);
-    
-        if (appState.analysis && appState.analysis.isLandmark) {
-            stopNarration();
-            setIsRegeneratingAudio(true);
-            try {
-                const newAudioData = await narrateText(appState.analysis.history, newVoice);
-                const updatedAnalysis = { ...appState.analysis, audioData: newAudioData };
-    
-                setAppState(prev => ({
-                    ...prev,
-                    analysis: updatedAnalysis,
-                }));
-    
-                setHistory(prevHistory => {
-                    const updatedHistory = prevHistory.map(h => 
-                        h.name === updatedAnalysis.name ? updatedAnalysis : h
-                    );
-                    return saveHistory(updatedHistory);
-                });
-            } catch (err) {
-                console.error("Failed to regenerate audio:", err);
-                const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-                setAppState(prev => ({ ...prev, error: `Failed to generate new narration: ${errorMessage}` }));
-            } finally {
-                setIsRegeneratingAudio(false);
-            }
-        }
-    };
-    
 
     const handleSelectHistoryItem = (item: LandmarkAnalysis) => {
-        stopNarration();
-        if (appState.imageDataUrl && appState.imageDataUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(appState.imageDataUrl);
-        }
-    
-        setAppState({
+        setState({
+            ...initialState,
             processState: ProcessState.Done,
-            imageFile: null,
-            imageDataUrl: `data:${item.imageMimeType};base64,${item.imageBase64}`,
             analysis: item,
-            error: null,
-            loadingMessage: ''
+            imageDataUrl: `data:${item.imageMimeType};base64,${item.imageBase64}`
         });
         setIsHistoryPanelOpen(false);
     };
 
     const handleClearHistory = () => {
         setHistory([]);
-        try {
-            localStorage.removeItem('landmarkHistory');
-        } catch (error) {
-            console.error("Failed to clear history from localStorage", error);
+        setIsHistoryPanelOpen(false);
+    };
+    
+    const renderContent = () => {
+        switch (state.processState) {
+            case ProcessState.Idle:
+                return <ImageUploader onImageChange={handleImageChange} />;
+            case ProcessState.ImageUploaded:
+                return (
+                    <div className="text-center animate-fade-in w-full max-w-lg mx-auto">
+                        {state.imageDataUrl && <img src={state.imageDataUrl} alt="Uploaded preview" className="rounded-xl shadow-lg mb-6 w-full object-contain max-h-80"/>}
+                         <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                             <div className="relative group mb-4">
+                                 <label htmlFor="voice-select" className="block text-sm font-medium text-gray-300 mb-1">Narration Voice</label>
+                                 <select 
+                                    id="voice-select"
+                                    value={selectedVoice.id} 
+                                    onChange={(e) => setSelectedVoice(voiceOptions.find(v => v.id === e.target.value)!)}
+                                    className="w-full appearance-none bg-gray-700 border border-gray-600 rounded-md py-2 pl-3 pr-10 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                                >
+                                    {voiceOptions.map(voice => <option key={voice.id} value={voice.id}>{voice.name}</option>)}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                                    <ChevronDownIcon className="w-5 h-5"/>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={startAnalysis} 
+                                className="w-full bg-cyan-500 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-cyan-600 transition-all duration-300 transform hover:scale-105"
+                            >
+                                Analyze Landmark
+                            </button>
+                        </div>
+                        <button onClick={handleReset} className="mt-4 text-sm text-gray-400 hover:text-white transition-colors">
+                            Choose a different image
+                        </button>
+                    </div>
+                );
+            case ProcessState.Loading:
+                return <Loader message={state.loadingMessage} />;
+            case ProcessState.Done:
+                return state.analysis && <AnalysisResult analysis={state.analysis} onNewAnalysis={handleReset} onShare={() => setIsShareModalOpen(true)} />;
+            case ProcessState.Error:
+                return (
+                     <div className="text-center animate-fade-in p-8 bg-red-900/20 border border-red-500/50 rounded-lg max-w-lg mx-auto">
+                        <h3 className="text-2xl font-bold text-red-400 mb-4">Analysis Failed</h3>
+                        <p className="text-red-200 mb-6">{state.error}</p>
+                        <button onClick={handleReset} className="bg-red-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-600 transition-colors">
+                            Try Again
+                        </button>
+                    </div>
+                );
+            default:
+                return null;
         }
     };
 
-
     return (
-        <div className="bg-gray-900 text-white min-h-screen font-sans flex flex-col items-center p-4 selection:bg-teal-400 selection:text-gray-900">
-            <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
-                 <header className="mb-8 w-full flex justify-between items-start">
-                    <div className="text-left">
-                        <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-teal-300 to-cyan-500">
-                            Photo Tour Guide
-                        </h1>
-                        <p className="text-gray-400 mt-2 text-lg">Upload a landmark photo and discover its story.</p>
-                    </div>
-                    <button
+        <div className="bg-gray-900 text-white min-h-screen font-sans flex flex-col">
+            <header className="flex justify-between items-center p-4 border-b border-gray-800 shadow-md flex-shrink-0">
+                <h1 className="text-2xl font-bold tracking-tight text-white">
+                    Landmark<span className="text-cyan-400">Lens</span>
+                </h1>
+                {history.length > 0 && (
+                     <button 
                         onClick={() => setIsHistoryPanelOpen(true)}
-                        className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 flex-shrink-0 ml-4"
-                        aria-label="View history"
+                        className="flex items-center gap-2 bg-gray-700 text-sm text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-600 transition-colors duration-200"
+                        aria-label="Open analysis history"
                     >
-                        <HistoryIcon className="w-7 h-7" />
+                         <HistoryIcon className="w-5 h-5" />
+                         History
                     </button>
-                </header>
+                )}
+            </header>
+            
+            <main className="flex-grow flex items-center justify-center p-4 md:p-8">
+                {renderContent()}
+            </main>
 
-                <main className="w-full bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-6 md:p-8 border border-gray-700 text-center">
-                    {appState.processState === ProcessState.Loading && <Loader message={appState.loadingMessage} />}
+            <footer className="text-center p-4 text-xs text-gray-600 border-t border-gray-800 flex-shrink-0">
+                Powered by Google Gemini. For informational purposes only.
+            </footer>
 
-                    {appState.processState !== ProcessState.Loading && !appState.imageDataUrl && (
-                        <ImageUploader onImageChange={handleImageChange} />
-                    )}
-
-                    {appState.imageDataUrl && appState.processState !== ProcessState.Loading && (
-                        <AnalysisResult
-                            imageDataUrl={appState.imageDataUrl}
-                            analysis={appState.analysis}
-                            onAnalyze={handleAnalyzeClick}
-                            onPlay={playNarration}
-                            onStop={stopNarration}
-                            isPlaying={isPlaying}
-                            showAnalyzeButton={appState.processState === ProcessState.ImageUploaded}
-                            onReset={handleReset}
-                            onDownload={handleDownload}
-                            onShare={handleShare}
-                            voices={AVAILABLE_VOICES}
-                            selectedVoice={selectedVoice}
-                            onVoiceChange={handleVoiceChange}
-                            isRegeneratingAudio={isRegeneratingAudio}
-                        />
-                    )}
-                    
-                    {appState.error && (
-                        <div className="mt-6 p-4 bg-red-900/50 border border-red-700 text-red-300 rounded-lg">
-                            <p className="font-semibold">Error</p>
-                            <p>{appState.error}</p>
-                            <button onClick={handleReset} className="mt-2 text-sm text-white underline">Try again</button>
-                        </div>
-                    )}
-                </main>
-                 <footer className="text-center mt-8 text-gray-500 text-sm">
-                    <p>Powered by Google Gemini</p>
-                </footer>
-            </div>
             {isHistoryPanelOpen && (
-                <HistoryPanel
-                    history={history}
-                    onSelect={handleSelectHistoryItem}
+                <HistoryPanel 
+                    history={history} 
+                    onSelect={handleSelectHistoryItem} 
                     onClose={() => setIsHistoryPanelOpen(false)}
                     onClearHistory={handleClearHistory}
                 />
             )}
+
+            {isShareModalOpen && state.analysis && (
+                <ShareModal 
+                    analysis={state.analysis}
+                    onClose={() => setIsShareModalOpen(false)}
+                />
+            )}
+            
+             <style>{`
+                @keyframes fade-in {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+            `}</style>
         </div>
     );
 };
