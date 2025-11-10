@@ -7,7 +7,7 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { ShareModal } from './components/ShareModal';
 import { AppState, ProcessState, LandmarkAnalysis, VoiceOption } from './types';
 import { identifyLandmark, fetchLandmarkHistory, narrateText } from './services/geminiService';
-import { HistoryIcon, ChevronDownIcon } from './components/icons';
+import { HistoryIcon, ChevronDownIcon, UploadIcon, BrainIcon, BookIcon, SoundWaveIcon } from './components/icons';
 
 const App: React.FC = () => {
     const initialState: AppState = {
@@ -148,7 +148,44 @@ const App: React.FC = () => {
     const renderContent = () => {
         switch (state.processState) {
             case ProcessState.Idle:
-                return <ImageUploader onImageChange={handleImageChange} />;
+                return (
+                     <div className="flex flex-col items-center justify-center w-full max-w-4xl mx-auto animate-fade-in">
+                        <ImageUploader onImageChange={handleImageChange} />
+                        <div className="mt-16 w-full text-center">
+                            <h2 className="text-2xl font-bold text-white mb-8 tracking-wide">How It Works</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                                <div className="flex flex-col items-center p-6 bg-gray-800/50 rounded-lg border border-gray-700">
+                                    <div className="flex items-center justify-center w-16 h-16 mb-4 bg-gray-700 rounded-full">
+                                        <UploadIcon className="w-8 h-8 text-cyan-400" />
+                                    </div>
+                                    <h3 className="font-semibold mb-2">1. Add an Image</h3>
+                                    <p className="text-sm text-gray-400">Upload or snap a photo of a landmark.</p>
+                                </div>
+                                <div className="flex flex-col items-center p-6 bg-gray-800/50 rounded-lg border border-gray-700">
+                                    <div className="flex items-center justify-center w-16 h-16 mb-4 bg-gray-700 rounded-full">
+                                        <BrainIcon className="w-8 h-8 text-cyan-400" />
+                                    </div>
+                                    <h3 className="font-semibold mb-2">2. Identification</h3>
+                                    <p className="text-sm text-gray-400">Recognises the landmark in your photo.</p>
+                                </div>
+                                <div className="flex flex-col items-center p-6 bg-gray-800/50 rounded-lg border border-gray-700">
+                                    <div className="flex items-center justify-center w-16 h-16 mb-4 bg-gray-700 rounded-full">
+                                        <BookIcon className="w-8 h-8 text-cyan-400" />
+                                    </div>
+                                    <h3 className="font-semibold mb-2">3. Fetch History</h3>
+                                    <p className="text-sm text-gray-400">It finds its history using Google Search.</p>
+                                </div>
+                                <div className="flex flex-col items-center p-6 bg-gray-800/50 rounded-lg border border-gray-700">
+                                    <div className="flex items-center justify-center w-16 h-16 mb-4 bg-gray-700 rounded-full">
+                                        <SoundWaveIcon className="w-8 h-8 text-cyan-400" />
+                                    </div>
+                                    <h3 className="font-semibold mb-2">4. Listen & Learn</h3>
+                                    <p className="text-sm text-gray-400">Get an audio narration of the story behind it.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
             case ProcessState.ImageUploaded:
                 return (
                     <div className="text-center animate-fade-in w-full max-w-lg mx-auto">
@@ -220,10 +257,6 @@ const App: React.FC = () => {
             <main className="flex-grow flex items-center justify-center p-4 md:p-8">
                 {renderContent()}
             </main>
-
-            <footer className="text-center p-4 text-xs text-gray-600 border-t border-gray-800 flex-shrink-0">
-                Powered by Google Gemini. For informational purposes only.
-            </footer>
 
             {isHistoryPanelOpen && (
                 <HistoryPanel 
