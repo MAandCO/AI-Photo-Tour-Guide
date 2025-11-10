@@ -39,7 +39,7 @@ export async function fetchLandmarkHistory(landmarkName: string): Promise<{ text
     return { text, sources };
 }
 
-export async function narrateText(text: string): Promise<string> {
+export async function narrateText(text: string, voiceName: string): Promise<string> {
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: `Read this in a clear, friendly tour guide voice: ${text}` }] }],
@@ -47,7 +47,7 @@ export async function narrateText(text: string): Promise<string> {
             responseModalities: [Modality.AUDIO],
             speechConfig: {
                 voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: 'Kore' },
+                    prebuiltVoiceConfig: { voiceName },
                 },
             },
         },

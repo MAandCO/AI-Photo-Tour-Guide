@@ -4,6 +4,8 @@ export interface LandmarkAnalysis {
     history: string;
     sources: any[]; 
     audioData: string;
+    imageBase64: string;
+    imageMimeType: string;
 }
 
 export enum ProcessState {
@@ -21,4 +23,9 @@ export interface AppState {
     analysis: LandmarkAnalysis | null;
     error: string | null;
     loadingMessage: string;
+}
+
+export interface VoiceOption {
+    id: string;
+    name: string;
 }
