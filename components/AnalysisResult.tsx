@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { LandmarkAnalysis, VoiceOption } from '../types';
 import { PlayIcon, PauseIcon, SparklesIcon, ResetIcon, DownloadIcon, ShareIcon, SpeakerWaveIcon, SpinnerIcon } from './icons';
@@ -40,25 +39,33 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     const commonButtonClasses = "bg-gray-700 text-white rounded-full p-3 shadow-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:bg-gray-700";
 
     return (
-        <div className="w-full flex flex-col items-center animate-fade-in">
-            <div className="relative w-full max-w-2xl group">
-                <img
-                    src={imageDataUrl}
-                    alt="Uploaded landmark"
-                    className="rounded-xl object-cover w-full shadow-lg"
-                />
-                <button 
-                  onClick={onReset}
-                  className="absolute top-3 right-3 bg-gray-900/70 p-2 rounded-full text-white hover:bg-red-600/80 transition-all duration-200 opacity-50 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-red-500"
-                  aria-label="Start over"
-                >
-                  <ResetIcon className="w-5 h-5"/>
-                </button>
-                {analysis && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/60 to-transparent p-6 rounded-b-xl">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-2xl font-bold text-white">{analysis.name}</h2>
-                             <div className="flex items-center gap-2 md:gap-3">
+        <div className="w-full animate-fade-in">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+                {/* --- Image Column --- */}
+                <div className="w-full md:w-1/2 lg:w-7/12 relative group flex-shrink-0">
+                    <img
+                        src={imageDataUrl}
+                        alt="Uploaded landmark"
+                        className="rounded-xl object-cover w-full shadow-lg aspect-[4/3]"
+                    />
+                    <button 
+                      onClick={onReset}
+                      className="absolute top-3 right-3 bg-gray-900/70 p-2 rounded-full text-white hover:bg-red-600/80 transition-all duration-200 opacity-50 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-red-500"
+                      aria-label="Start over"
+                    >
+                      <ResetIcon className="w-5 h-5"/>
+                    </button>
+                </div>
+                
+                {/* --- Details Column --- */}
+                <div className="w-full md:w-1/2 lg:w-5/12 flex flex-col text-left">
+                    {analysis ? (
+                        <>
+                            <h2 className="text-3xl font-bold text-white">{analysis.name}</h2>
+                            <div className="text-gray-300 mt-4 text-sm leading-relaxed flex-grow h-32 md:h-auto overflow-y-auto pr-2 custom-scrollbar">
+                                <p>{analysis.history}</p>
+                            </div>
+                            <div className="flex items-center gap-2 md:gap-3 mt-auto pt-4 flex-wrap">
                                 <button
                                     onClick={onDownload}
                                     className={commonButtonClasses}
@@ -103,26 +110,24 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
                                     }
                                 </button>
                             </div>
+                        </>
+                    ) : showAnalyzeButton ? (
+                        <div className="h-full flex flex-col items-center justify-center md:items-start md:justify-center">
+                            <p className="text-gray-400 mb-4 text-center md:text-left">Your image is ready. Let's find out its story!</p>
+                            <button
+                                onClick={onAnalyze}
+                                className="flex items-center gap-2 bg-gradient-to-r from-teal-400 to-cyan-500 text-gray-900 font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400"
+                            >
+                                <SparklesIcon className="w-5 h-5"/>
+                                Discover History
+                            </button>
                         </div>
-                        <p className="text-gray-300 mt-2 text-sm leading-relaxed max-h-24 overflow-y-auto pr-2">
-                           {analysis.history}
-                        </p>
-                    </div>
-                )}
+                    ) : null}
+                </div>
             </div>
 
-            {showAnalyzeButton && (
-                <button
-                    onClick={onAnalyze}
-                    className="mt-6 flex items-center gap-2 bg-gradient-to-r from-teal-400 to-cyan-500 text-gray-900 font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400"
-                >
-                    <SparklesIcon className="w-5 h-5"/>
-                    Discover History
-                </button>
-            )}
-
             {analysis?.sources && analysis.sources.length > 0 && (
-                <div className="mt-6 w-full max-w-2xl text-left">
+                <div className="mt-8 w-full text-left">
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Sources</h3>
                     <ul className="mt-2 space-y-1">
                         {analysis.sources.map((source, index) => (
@@ -142,6 +147,23 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
                     </ul>
                 </div>
             )}
+            
+            {/* Adding custom scrollbar style */}
+            <style>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 8px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background-color: rgba(107, 114, 128, 0.5);
+                    border-radius: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background-color: rgba(107, 114, 128, 0.8);
+                }
+            `}</style>
         </div>
     );
 };

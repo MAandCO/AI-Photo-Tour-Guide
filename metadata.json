@@ -1,5 +1,7 @@
 {
   "name": "AI Photo Tour Guide",
   "description": "An application that allows users to upload a photo of a landmark. The app uses AI to recognize the landmark, fetch its history using Google Search, and provide an audio narration of the history using Text-to-Speech.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }
