@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LandmarkAnalysis, VoiceOption } from '../types';
 import { PlayIcon, PauseIcon, SparklesIcon, ResetIcon, DownloadIcon, ShareIcon, SpeakerWaveIcon, SpinnerIcon } from './icons';
@@ -37,6 +38,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
 }) => {
     const canShare = typeof navigator !== 'undefined' && !!navigator.share;
     const commonButtonClasses = "bg-gray-700 text-white rounded-full p-3 shadow-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:bg-gray-700";
+    const isLandmark = analysis?.isLandmark ?? false;
 
     return (
         <div className="w-full animate-fade-in">
@@ -65,51 +67,58 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
                             <div className="text-gray-300 mt-4 text-sm leading-relaxed flex-grow h-32 md:h-auto overflow-y-auto pr-2 custom-scrollbar">
                                 <p>{analysis.history}</p>
                             </div>
-                            <div className="flex items-center gap-2 md:gap-3 mt-auto pt-4 flex-wrap">
-                                <button
-                                    onClick={onDownload}
-                                    className={commonButtonClasses}
-                                    aria-label="Download narration"
-                                    disabled={isRegeneratingAudio}
-                                >
-                                   <DownloadIcon className="w-6 h-6" />
-                                </button>
-                                {canShare && (
-                                     <button
-                                        onClick={onShare}
+                            
+                            {isLandmark && analysis.audioData ? (
+                                <div className="flex items-center gap-2 md:gap-3 mt-auto pt-4 flex-wrap">
+                                    <button
+                                        onClick={onDownload}
                                         className={commonButtonClasses}
-                                        aria-label="Share analysis"
+                                        aria-label="Download narration"
                                         disabled={isRegeneratingAudio}
                                     >
-                                       <ShareIcon className="w-6 h-6" />
+                                    <DownloadIcon className="w-6 h-6" />
                                     </button>
-                                )}
-                                <div className="relative">
-                                    <SpeakerWaveIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                                    <select
-                                        value={selectedVoice}
-                                        onChange={(e) => onVoiceChange(e.target.value)}
+                                    {canShare && (
+                                        <button
+                                            onClick={onShare}
+                                            className={commonButtonClasses}
+                                            aria-label="Share analysis"
+                                            disabled={isRegeneratingAudio}
+                                        >
+                                        <ShareIcon className="w-6 h-6" />
+                                        </button>
+                                    )}
+                                    <div className="relative">
+                                        <SpeakerWaveIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                                        <select
+                                            value={selectedVoice}
+                                            onChange={(e) => onVoiceChange(e.target.value)}
+                                            disabled={isRegeneratingAudio}
+                                            className="bg-gray-700 text-white rounded-full appearance-none pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                            aria-label="Select narration voice"
+                                        >
+                                            {voices.map(voice => (
+                                                <option key={voice.id} value={voice.id}>{voice.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={isPlaying ? onStop : onPlay}
+                                        className="bg-cyan-500 text-gray-900 rounded-full p-3 shadow-lg hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 transition-transform transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:bg-cyan-500"
+                                        aria-label={isPlaying ? 'Pause narration' : 'Play narration'}
                                         disabled={isRegeneratingAudio}
-                                        className="bg-gray-700 text-white rounded-full appearance-none pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        aria-label="Select narration voice"
                                     >
-                                        {voices.map(voice => (
-                                            <option key={voice.id} value={voice.id}>{voice.name}</option>
-                                        ))}
-                                    </select>
+                                        {isRegeneratingAudio 
+                                            ? <SpinnerIcon className="w-6 h-6" />
+                                            : (isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />)
+                                        }
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={isPlaying ? onStop : onPlay}
-                                    className="bg-cyan-500 text-gray-900 rounded-full p-3 shadow-lg hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400 transition-transform transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:bg-cyan-500"
-                                    aria-label={isPlaying ? 'Pause narration' : 'Play narration'}
-                                    disabled={isRegeneratingAudio}
-                                >
-                                    {isRegeneratingAudio 
-                                        ? <SpinnerIcon className="w-6 h-6" />
-                                        : (isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />)
-                                    }
-                                </button>
-                            </div>
+                             ) : !isLandmark ? (
+                                <div className="mt-auto pt-4">
+                                    <p className="text-sm text-gray-400">Audio narration and sources are available for famous landmarks. Try another photo!</p>
+                                </div>
+                             ) : null }
                         </>
                     ) : showAnalyzeButton ? (
                         <div className="h-full flex flex-col items-center justify-center md:items-start md:justify-center">
@@ -126,7 +135,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
                 </div>
             </div>
 
-            {analysis?.sources && analysis.sources.length > 0 && (
+            {isLandmark && analysis?.sources && analysis.sources.length > 0 && (
                 <div className="mt-8 w-full text-left">
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Sources</h3>
                     <ul className="mt-2 space-y-1">

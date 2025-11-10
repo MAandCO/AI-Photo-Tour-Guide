@@ -1,11 +1,18 @@
 
+export interface LandmarkIdentificationResult {
+    isLandmark: boolean;
+    name: string | null;
+    description: string | null;
+}
+
 export interface LandmarkAnalysis {
     name: string;
     history: string;
     sources: any[]; 
-    audioData: string;
+    audioData: string | null;
     imageBase64: string;
     imageMimeType: string;
+    isLandmark: boolean;
 }
 
 export enum ProcessState {

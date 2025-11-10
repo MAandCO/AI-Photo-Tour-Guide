@@ -1,5 +1,6 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
+import { LandmarkIdentificationResult } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
@@ -7,21 +8,56 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-export async function identifyLandmark(base64Image: string, mimeType: string): Promise<string> {
+const landmarkIdentificationSchema = {
+    type: Type.OBJECT,
+    properties: {
+        isLandmark: { 
+            type: Type.BOOLEAN, 
+            description: 'True if the image contains a famous, identifiable landmark, false otherwise.' 
+        },
+        name: { 
+            type: Type.STRING, 
+            description: 'If a landmark is identified, this is its official name and location (e.g., "Eiffel Tower, Paris, France"). Otherwise, this is null.' 
+        },
+        description: { 
+            type: Type.STRING, 
+            description: 'If no landmark is identified, this is a brief, one-sentence description of the main subject of the image. Otherwise, this is null.' 
+        },
+    },
+    required: ['isLandmark', 'name', 'description'],
+};
+
+
+export async function identifyLandmark(base64Image: string, mimeType: string): Promise<LandmarkIdentificationResult> {
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: {
             parts: [
-                { text: "Identify the famous landmark in this photo. Provide only the name and city/country of the landmark. If it is not a famous landmark, say 'Unknown'." },
+                { text: "Analyze the image. If it contains a famous, identifiable landmark, set isLandmark to true and provide its name and location. If not, set isLandmark to false and provide a brief description of the image's subject." },
                 { inlineData: { data: base64Image, mimeType } }
             ]
-        }
+        },
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: landmarkIdentificationSchema,
+        },
     });
-    const text = response.text.trim();
-    if (text.toLowerCase() === 'unknown') {
-        throw new Error("The uploaded image does not appear to be a famous landmark.");
+
+    try {
+        const jsonString = response.text.trim();
+        const result: LandmarkIdentificationResult = JSON.parse(jsonString);
+        
+        if (typeof result.isLandmark !== 'boolean') {
+            throw new Error("Invalid response format from identification model.");
+        }
+        
+        return result;
+
+    } catch (e) {
+        console.error("Failed to parse landmark identification response:", e);
+        console.error("Raw response text:", response.text);
+        throw new Error("Could not understand the response from the identification service.");
     }
-    return text;
 }
 
 export async function fetchLandmarkHistory(landmarkName: string): Promise<{ text: string, sources: any[] }> {

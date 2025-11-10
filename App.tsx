@@ -18,6 +18,31 @@ const AVAILABLE_VOICES: VoiceOption[] = [
     { id: 'Zephyr', name: 'Zephyr' },
 ];
 
+const MAX_HISTORY_ITEMS = 20;
+
+const saveHistory = (historyToSave: LandmarkAnalysis[]): LandmarkAnalysis[] => {
+    let history = [...historyToSave];
+    let saved = false;
+    // Keep trying to save, removing the oldest item each time the quota is exceeded.
+    while (!saved && history.length > 0) {
+        try {
+            localStorage.setItem('landmarkHistory', JSON.stringify(history));
+            saved = true;
+        } catch (error) {
+            if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+                console.warn(`LocalStorage quota exceeded. Removing oldest history item to make space.`);
+                history.pop(); // Remove the oldest item
+            } else {
+                console.error("Failed to save history to localStorage", error);
+                // For other errors, stop trying.
+                break;
+            }
+        }
+    }
+    return history; // Return the version of history that was successfully saved.
+};
+
+
 // Helper to convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -81,30 +106,48 @@ const App: React.FC = () => {
     const handleAnalyzeClick = useCallback(async () => {
         if (!appState.imageFile) return;
 
-        setAppState(prev => ({ ...prev, processState: ProcessState.Loading, error: null, loadingMessage: 'Analyzing image to identify landmark...' }));
+        setAppState(prev => ({ ...prev, processState: ProcessState.Loading, error: null, loadingMessage: 'Analyzing image...' }));
         
         try {
             const base64Image = await fileToBase64(appState.imageFile);
             
-            const landmarkName = await identifyLandmark(base64Image, appState.imageFile.type);
-            if (!landmarkName) throw new Error("Could not identify the landmark.");
-            
-            setAppState(prev => ({ ...prev, loadingMessage: `Identified: ${landmarkName}. Fetching history...` }));
+            const identificationResult = await identifyLandmark(base64Image, appState.imageFile.type);
 
-            const { text: historyText, sources } = await fetchLandmarkHistory(landmarkName);
+            let newAnalysis: LandmarkAnalysis;
 
-            setAppState(prev => ({ ...prev, loadingMessage: 'Generating audio narration...' }));
+            if (identificationResult.isLandmark && identificationResult.name) {
+                const landmarkName = identificationResult.name;
+                setAppState(prev => ({ ...prev, loadingMessage: `Identified: ${landmarkName}. Fetching history...` }));
 
-            const audioData = await narrateText(historyText, selectedVoice);
-            
-            const newAnalysis: LandmarkAnalysis = {
-                name: landmarkName,
-                history: historyText,
-                sources,
-                audioData,
-                imageBase64: base64Image,
-                imageMimeType: appState.imageFile.type,
-            };
+                const { text: historyText, sources } = await fetchLandmarkHistory(landmarkName);
+
+                setAppState(prev => ({ ...prev, loadingMessage: 'Generating audio narration...' }));
+
+                const audioData = await narrateText(historyText, selectedVoice);
+                
+                newAnalysis = {
+                    name: landmarkName,
+                    history: historyText,
+                    sources,
+                    audioData,
+                    imageBase64: base64Image,
+                    imageMimeType: appState.imageFile.type,
+                    isLandmark: true,
+                };
+            } else {
+                // Not a landmark
+                setAppState(prev => ({ ...prev, loadingMessage: 'Analysis complete.' }));
+                newAnalysis = {
+                    name: "Image Analysis",
+                    history: identificationResult.description || "Could not identify a specific landmark in this image.",
+                    sources: [],
+                    audioData: null, // No audio for non-landmarks
+                    imageBase64: base64Image,
+                    imageMimeType: appState.imageFile.type,
+                    isLandmark: false,
+                };
+            }
+
 
             setAppState(prev => ({
                 ...prev,
@@ -114,13 +157,9 @@ const App: React.FC = () => {
             }));
             
             setHistory(prevHistory => {
-                const updatedHistory = [newAnalysis, ...prevHistory.filter(h => h.name !== newAnalysis.name)];
-                 try {
-                    localStorage.setItem('landmarkHistory', JSON.stringify(updatedHistory));
-                } catch (error) {
-                    console.error("Failed to save history to localStorage", error);
-                }
-                return updatedHistory;
+                const updatedHistory = [newAnalysis, ...prevHistory.filter(h => h.name !== newAnalysis.name)]
+                    .slice(0, MAX_HISTORY_ITEMS);
+                return saveHistory(updatedHistory);
             });
 
         } catch (err) {
@@ -238,7 +277,7 @@ const App: React.FC = () => {
     const handleVoiceChange = async (newVoice: string) => {
         setSelectedVoice(newVoice);
     
-        if (appState.analysis) {
+        if (appState.analysis && appState.analysis.isLandmark) {
             stopNarration();
             setIsRegeneratingAudio(true);
             try {
@@ -254,12 +293,7 @@ const App: React.FC = () => {
                     const updatedHistory = prevHistory.map(h => 
                         h.name === updatedAnalysis.name ? updatedAnalysis : h
                     );
-                    try {
-                        localStorage.setItem('landmarkHistory', JSON.stringify(updatedHistory));
-                    } catch (error) {
-                        console.error("Failed to update history in localStorage", error);
-                    }
-                    return updatedHistory;
+                    return saveHistory(updatedHistory);
                 });
             } catch (err) {
                 console.error("Failed to regenerate audio:", err);
