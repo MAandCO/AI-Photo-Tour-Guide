@@ -183,3 +183,43 @@ export async function createVideoFromLandmark(
     
     return downloadLink;
 }
+
+const socialPostSchema = {
+    type: Type.OBJECT,
+    properties: {
+        title: {
+            type: Type.STRING,
+            description: 'A short, catchy title for the video, under 100 characters.'
+        },
+        description: {
+            type: Type.STRING,
+            description: 'An engaging description for a social media post, between 100 and 280 characters, including 2-3 relevant hashtags.'
+        }
+    },
+    required: ['title', 'description']
+};
+
+export async function generateVideoSocialPost(landmarkName: string): Promise<{ title: string; description: string; }> {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Generate a short, catchy social media post for a video about ${landmarkName}. The video is a cinematic tour. Create a title and a description. Include relevant hashtags in the description.`,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: socialPostSchema,
+        },
+    });
+
+    try {
+        const jsonString = response.text.trim();
+        const result = JSON.parse(jsonString);
+        if (typeof result.title !== 'string' || typeof result.description !== 'string') {
+             throw new Error("Invalid response format from social post generation model.");
+        }
+        return result;
+
+    } catch (e) {
+        console.error("Failed to parse social post response:", e);
+        console.error("Raw response text:", response.text);
+        throw new Error("Could not understand the response from the AI for the social post.");
+    }
+}
