@@ -176,8 +176,14 @@ export async function createVideoFromLandmark(
         updateProgress(`Rendering video... ${Math.min(progress, 99)}% complete. This may take a few minutes.`);
     }
 
+    if (operation.error) {
+        const errorMessage = (operation.error as any).message || 'An unknown error occurred during video processing.';
+        throw new Error(`Video generation failed: ${errorMessage}`);
+    }
+
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) {
+        console.error("Video operation finished without error, but response is missing a URI:", JSON.stringify(operation.response, null, 2));
         throw new Error("Video generation completed, but no download link was provided.");
     }
     

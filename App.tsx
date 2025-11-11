@@ -122,7 +122,12 @@ const App: React.FC = () => {
             };
 
             setState(s => ({ ...s, processState: ProcessState.Done, analysis: finalAnalysis }));
-            setHistory(prevHistory => [finalAnalysis, ...prevHistory.filter(item => item.name !== finalAnalysis.name)]);
+            
+            const MAX_HISTORY_ITEMS = 10;
+            setHistory(prevHistory => {
+                const newHistory = [finalAnalysis, ...prevHistory.filter(item => item.name !== finalAnalysis.name)];
+                return newHistory.slice(0, MAX_HISTORY_ITEMS);
+            });
 
         } catch (err) {
             console.error("Analysis failed:", err);
