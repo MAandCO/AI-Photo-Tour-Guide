@@ -31,7 +31,6 @@ export interface AppState {
     error: string | null;
     loadingMessage: string;
     videoUrl: string | null;
-    videoBlob: Blob | null;
     isVeoKeyModalOpen: boolean;
 }
 

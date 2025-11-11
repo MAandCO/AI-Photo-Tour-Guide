@@ -176,56 +176,10 @@ export async function createVideoFromLandmark(
         updateProgress(`Rendering video... ${Math.min(progress, 99)}% complete. This may take a few minutes.`);
     }
 
-    if (operation.error) {
-        const errorMessage = (operation.error as any).message || 'An unknown error occurred during video processing.';
-        throw new Error(`Video generation failed: ${errorMessage}`);
-    }
-
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) {
-        console.error("Video operation finished without error, but response is missing a URI:", JSON.stringify(operation.response, null, 2));
         throw new Error("Video generation completed, but no download link was provided.");
     }
     
     return downloadLink;
-}
-
-const socialPostSchema = {
-    type: Type.OBJECT,
-    properties: {
-        title: {
-            type: Type.STRING,
-            description: 'A short, catchy title for the video, under 100 characters.'
-        },
-        description: {
-            type: Type.STRING,
-            description: 'An engaging description for a social media post, between 100 and 280 characters, including 2-3 relevant hashtags.'
-        }
-    },
-    required: ['title', 'description']
-};
-
-export async function generateVideoSocialPost(landmarkName: string): Promise<{ title: string; description: string; }> {
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Generate a short, catchy social media post for a video about ${landmarkName}. The video is a cinematic tour. Create a title and a description. Include relevant hashtags in the description.`,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: socialPostSchema,
-        },
-    });
-
-    try {
-        const jsonString = response.text.trim();
-        const result = JSON.parse(jsonString);
-        if (typeof result.title !== 'string' || typeof result.description !== 'string') {
-             throw new Error("Invalid response format from social post generation model.");
-        }
-        return result;
-
-    } catch (e) {
-        console.error("Failed to parse social post response:", e);
-        console.error("Raw response text:", response.text);
-        throw new Error("Could not understand the response from the AI for the social post.");
-    }
 }

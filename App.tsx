@@ -4,7 +4,6 @@ import { Loader } from './components/Loader';
 import { AnalysisResult } from './components/AnalysisResult';
 import { HistoryPanel } from './components/HistoryPanel';
 import { ShareModal } from './components/ShareModal';
-import { VideoShareModal } from './components/VideoShareModal';
 import { VeoApiKeyModal } from './components/VeoApiKeyModal';
 import { AppState, ProcessState, LandmarkAnalysis, VoiceOption } from './types';
 import { identifyLandmark, fetchLandmarkHistory, narrateText, createVideoFromLandmark } from './services/geminiService';
@@ -19,7 +18,6 @@ const App: React.FC = () => {
         error: null,
         loadingMessage: '',
         videoUrl: null,
-        videoBlob: null,
         isVeoKeyModalOpen: false,
     };
     
@@ -27,7 +25,6 @@ const App: React.FC = () => {
     const [history, setHistory] = useState<LandmarkAnalysis[]>([]);
     const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-    const [isVideoShareModalOpen, setIsVideoShareModalOpen] = useState(false);
     
     const voiceOptions: VoiceOption[] = [
         { id: 'Kore', name: 'Kore (Female)' },
@@ -122,12 +119,7 @@ const App: React.FC = () => {
             };
 
             setState(s => ({ ...s, processState: ProcessState.Done, analysis: finalAnalysis }));
-            
-            const MAX_HISTORY_ITEMS = 10;
-            setHistory(prevHistory => {
-                const newHistory = [finalAnalysis, ...prevHistory.filter(item => item.name !== finalAnalysis.name)];
-                return newHistory.slice(0, MAX_HISTORY_ITEMS);
-            });
+            setHistory(prevHistory => [finalAnalysis, ...prevHistory.filter(item => item.name !== finalAnalysis.name)]);
 
         } catch (err) {
             console.error("Analysis failed:", err);
@@ -156,7 +148,7 @@ const App: React.FC = () => {
             const videoBlob = await response.blob();
             const objectUrl = URL.createObjectURL(videoBlob);
             
-            setState(s => ({ ...s, videoUrl: objectUrl, videoBlob: videoBlob, processState: ProcessState.Done, loadingMessage: '' }));
+            setState(s => ({ ...s, videoUrl: objectUrl, processState: ProcessState.Done, loadingMessage: '' }));
 
         } catch (err) {
             console.error("Video generation failed:", err);
@@ -297,10 +289,8 @@ const App: React.FC = () => {
                         analysis={state.analysis} 
                         onNewAnalysis={handleReset} 
                         onShare={() => setIsShareModalOpen(true)}
-                        onShareVideo={() => setIsVideoShareModalOpen(true)}
                         onGenerateVideo={handleGenerateVideo}
                         videoUrl={state.videoUrl}
-                        videoBlob={state.videoBlob}
                         isVideoLoading={state.processState === ProcessState.GeneratingVideo}
                         videoLoadingMessage={state.loadingMessage}
                     />
@@ -355,15 +345,6 @@ const App: React.FC = () => {
                 <VeoApiKeyModal
                     onClose={() => setState(s => ({...s, isVeoKeyModalOpen: false}))}
                     onSelectKey={handleSelectKey}
-                />
-            )}
-
-            {isVideoShareModalOpen && state.analysis && state.videoBlob && state.videoUrl && (
-                <VideoShareModal
-                    landmarkName={state.analysis.name}
-                    videoBlob={state.videoBlob}
-                    videoUrl={state.videoUrl}
-                    onClose={() => setIsVideoShareModalOpen(false)}
                 />
             )}
 

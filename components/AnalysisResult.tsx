@@ -8,9 +8,7 @@ interface AnalysisResultProps {
     onNewAnalysis: () => void;
     onShare: () => void;
     onGenerateVideo: () => void;
-    onShareVideo: () => void;
     videoUrl: string | null;
-    videoBlob: Blob | null;
     isVideoLoading: boolean;
     videoLoadingMessage: string;
 }
@@ -20,9 +18,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     onNewAnalysis, 
     onShare,
     onGenerateVideo,
-    onShareVideo,
     videoUrl,
-    videoBlob,
     isVideoLoading,
     videoLoadingMessage
 }) => {
@@ -93,18 +89,6 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
         }
     };
 
-    const handleDownloadVideo = () => {
-        if (!videoBlob) return;
-        const url = URL.createObjectURL(videoBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${analysis.name.replace(/\s+/g, '_')}_tour.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
     return (
         <div className="w-full max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden border border-gray-700">
@@ -161,56 +145,8 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
                         </div>
                         
                         <div className="mt-6 pt-6 border-t border-gray-700 space-y-4">
-                            {/* Video Actions (if video exists) */}
-                            {videoUrl && (
-                                <div className="space-y-4">
-                                    <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider text-center">Video Tour</p>
-                                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                                        <button
-                                            onClick={onShareVideo}
-                                            className="w-full sm:w-auto flex-grow flex items-center justify-center gap-2 bg-cyan-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-cyan-600 transition-all duration-300 transform hover:scale-105"
-                                        >
-                                            <ShareIcon className="w-6 h-6"/>
-                                            Share Video
-                                        </button>
-                                        <button
-                                            onClick={handleDownloadVideo}
-                                            className="w-full sm:w-auto flex-shrink-0 flex items-center justify-center gap-2 bg-gray-700/60 text-gray-300 font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-gray-600 hover:text-white transition-all duration-300"
-                                        >
-                                            <DownloadIcon className="w-6 h-6"/>
-                                            Download
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Narration Actions */}
-                            {analysis.audioData && (
-                                <div className={`space-y-4 ${videoUrl ? 'pt-4 border-t border-gray-700/50' : ''}`}>
-                                     <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider text-center">Audio Narration</p>
-                                     <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
-                                         <button
-                                            onClick={togglePlayback}
-                                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-gray-600 transition-all duration-300"
-                                        >
-                                            {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
-                                            {isPlaying ? 'Pause' : 'Play'}
-                                        </button>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={handleDownloadAudio} title="Download audio narration" aria-label="Download audio narration" className="p-3 bg-gray-700/60 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors">
-                                                <DownloadIcon className="w-6 h-6"/>
-                                            </button>
-                                            <button onClick={onShare} title="Share text analysis" aria-label="Share text analysis" className="p-3 bg-gray-700/60 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors">
-                                                <ShareIcon className="w-6 h-6"/>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* Create Video button (if no video exists yet) */}
-                            {!videoUrl && analysis.isLandmark && (
-                                 <button
+                            {analysis.isLandmark && !videoUrl && (
+                                <button
                                     onClick={onGenerateVideo}
                                     disabled={isVideoLoading}
                                     className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-purple-500 disabled:bg-gray-500 disabled:scale-100 disabled:cursor-not-allowed"
@@ -218,6 +154,26 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
                                     <VideoIcon className="w-6 h-6"/>
                                     {isVideoLoading ? 'Generating...' : 'Create Video Tour'}
                                 </button>
+                            )}
+
+                            {analysis.audioData && (
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <button
+                                        onClick={togglePlayback}
+                                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-cyan-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-cyan-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-cyan-400"
+                                    >
+                                        {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
+                                        {isPlaying ? 'Pause' : 'Play Narration'}
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={handleDownloadAudio} aria-label="Download audio" className="p-3 bg-gray-700/60 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors">
+                                            <DownloadIcon className="w-6 h-6"/>
+                                        </button>
+                                        <button onClick={onShare} aria-label="Share result" className="p-3 bg-gray-700/60 rounded-full text-gray-300 hover:bg-gray-600 hover:text-white transition-colors">
+                                            <ShareIcon className="w-6 h-6"/>
+                                        </button>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>
